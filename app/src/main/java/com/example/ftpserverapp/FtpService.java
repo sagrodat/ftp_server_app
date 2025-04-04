@@ -102,8 +102,8 @@ public class FtpService extends Service {
                 Log.d(TAG, "Set passive port to 2300");
 
                 // 2. Ustaw adres zewnętrzny na localhost (tak jak było, logi pokazały, że serwer to wysyłał)
-                dccf.setPassiveExternalAddress("127.0.0.1");
-                Log.d(TAG, "Set passive external address to 127.0.0.1");
+                //dccf.setPassiveExternalAddress("127.0.0.1");
+                //Log.d(TAG, "Set passive external address to 127.0.0.1");
 
 
                 // 3. Przypisz konfigurację połączenia danych do listenera (tak jak było)
