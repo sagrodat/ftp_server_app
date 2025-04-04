@@ -3,7 +3,9 @@ package com.example.ftpserverapp;
 // ** ADD/CHECK THESE IMPORTS **
 import android.Manifest;
 import android.app.AlertDialog; // Import AlertDialog
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.net.Uri; // Import Uri
 import android.os.Build;
@@ -15,6 +17,9 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -31,6 +36,9 @@ public class MainActivity extends AppCompatActivity {
 
     private TextView tvStatus, tvAddress, tvCredentials;
     private Button btnStart, btnStop, btnGrantPermissions;
+
+    private BroadcastReceiver serverStateReceiver;
+
 
     // Launcher for Notification permission (and potentially others NOT requiring settings)
     private ActivityResultLauncher<String[]> requestPermissionLauncher;
@@ -51,6 +59,20 @@ public class MainActivity extends AppCompatActivity {
         btnGrantPermissions = findViewById(R.id.btnGrantPermissions);
 
         setupPermissionLaunchers(); // Register launchers
+
+        // Initialize the receiver
+        serverStateReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (Constants.BROADCAST_SERVER_STATE.equals(intent.getAction())) {
+                    int state = intent.getIntExtra(Constants.EXTRA_SERVER_STATE, Constants.SERVER_STATE_STOPPED);
+                    String ipAddress = intent.getStringExtra(Constants.EXTRA_SERVER_IP);
+                    Log.d(TAG, "Received broadcast - State: " + state + ", IP: " + ipAddress);
+                    updateUI(state, ipAddress); // Update UI based on broadcast
+                }
+            }
+        };
+
 
         // --- BUTTON CLICK LISTENERS ---
         btnStart.setOnClickListener(v -> {
@@ -241,8 +263,25 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Refresh UI state when activity resumes (checks permissions via checkPermissionsGranted -> updateUI)
+        // Register receiver for immediate updates
+        IntentFilter filter = new IntentFilter(Constants.BROADCAST_SERVER_STATE);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            registerReceiver(serverStateReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        }
+
+        Log.d(TAG,"Broadcast receiver registered");
+
+        // Also refresh UI on resume in case state changed while paused
         updateUI(FtpService.getCurrentServerState(), FtpService.getCurrentIpAddress());
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Unregister receiver to prevent leaks
+        unregisterReceiver(serverStateReceiver);
+        Log.d(TAG,"Broadcast receiver unregistered");
     }
 
 

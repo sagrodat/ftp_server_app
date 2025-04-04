@@ -26,6 +26,21 @@ import org.apache.ftpserver.usermanager.PropertiesUserManagerFactory;
 import org.apache.ftpserver.usermanager.impl.BaseUser;
 import org.apache.ftpserver.usermanager.impl.WritePermission;
 
+// Upewnij się, że TE importy są obecne:
+import org.apache.ftpserver.ftplet.UserManager; // Interfejs!
+import org.apache.ftpserver.usermanager.PropertiesUserManagerFactory; // Fabryka
+import org.apache.ftpserver.usermanager.ClearTextPasswordEncryptor; // Proste szyfrowanie (lub inne jak Md5PasswordEncryptor)
+import org.apache.ftpserver.usermanager.impl.BaseUser;
+import org.apache.ftpserver.usermanager.impl.WritePermission;
+import org.apache.ftpserver.ftplet.Authority;
+import org.apache.ftpserver.ftplet.FtpException;
+import org.apache.ftpserver.ftplet.UserManager; // Ważne dla interfejsu UserManager
+import org.apache.ftpserver.ftplet.User; // Ważne dla BaseUser i metody save
+import org.apache.ftpserver.ftplet.FtpException; // Dla obsługi błędów
+import org.apache.ftpserver.usermanager.impl.BaseUser; // Dla tworzenia użytkownika
+import org.apache.ftpserver.usermanager.impl.WritePermission; // Dla uprawnień
+import org.apache.ftpserver.ftplet.Authority; // Dla uprawnień
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -69,65 +84,106 @@ public class FtpService extends Service {
     }
 
     private void startFtpServer() {
-        if (mFtpServer != null && !mFtpServer.isStopped()) {
-            Log.w(TAG, "Server already running");
-            Toast.makeText(this, "Server is already running", Toast.LENGTH_SHORT).show();
-            updateState(Constants.SERVER_STATE_RUNNING, currentIpAddress); // Re-broadcast state
-            return;
-        }
-
         // Perform network operations on a background thread
         mExecutorService.submit(() -> {
             updateState(Constants.SERVER_STATE_STARTING, null);
-            try {
+            try { // Dodajemy try-catch wokół całego startu serwera
+
                 FtpServerFactory serverFactory = new FtpServerFactory();
                 ListenerFactory listenerFactory = new ListenerFactory();
-
-                // Set the port
                 listenerFactory.setPort(Constants.FTP_PORT);
+
+                // --- Poprawiona Konfiguracja Portów Pasywnych ---
+                org.apache.ftpserver.DataConnectionConfigurationFactory dccf =
+                        new org.apache.ftpserver.DataConnectionConfigurationFactory();
+
+                // 1. Ustaw JEDEN konkretny port pasywny (np. 2300)
+                dccf.setPassivePorts("2300");
+                Log.d(TAG, "Set passive port to 2300");
+
+                // 2. Ustaw adres zewnętrzny na localhost (tak jak było, logi pokazały, że serwer to wysyłał)
+                dccf.setPassiveExternalAddress("127.0.0.1");
+                Log.d(TAG, "Set passive external address to 127.0.0.1");
+
+
+                // 3. Przypisz konfigurację połączenia danych do listenera (tak jak było)
+                listenerFactory.setDataConnectionConfiguration(dccf.createDataConnectionConfiguration());
+                // --- Koniec Poprawionej Konfiguracji ---
+
                 serverFactory.addListener("default", listenerFactory.createListener());
 
-                // Setup User Manager
+                // --- Nowa Konfiguracja Menedżera Użytkowników ---
                 PropertiesUserManagerFactory userManagerFactory = new PropertiesUserManagerFactory();
 
-                // !!! IMPORTANT: Using external storage root. Ensure Permissions are granted !!!
+                // Opcjonalnie: Ustawienie szyfrowania hasła. Bez tego może użyć domyślnego (MD5) lub rzucić błędem.
+                // Dla prostoty użyjemy ClearText - hasło będzie przechowywane jako zwykły tekst.
+                // Pamiętaj, żeby dodać import: import org.apache.ftpserver.usermanager.ClearTextPasswordEncryptor;
+                userManagerFactory.setPasswordEncryptor(new org.apache.ftpserver.usermanager.ClearTextPasswordEncryptor());
+
+                // Utwórz instancję UserManager (będzie to PropertiesUserManager) z fabryki
+                // Ważne: importuj interfejs UserManager! import org.apache.ftpserver.ftplet.UserManager;
+                UserManager userManager = userManagerFactory.createUserManager();
+
+                // Utwórz obiekt użytkownika BaseUser (tak jak poprzednio)
+                BaseUser user = new BaseUser();
+                user.setName(Constants.FTP_USER); // "android"
+                // Ustaw hasło - jeśli ustawiłeś PasswordEncryptor, on zajmie się szyfrowaniem przy zapisie
+                user.setPassword(Constants.FTP_PASS); // "android"
+
+                // Ustaw katalog domowy (tak jak poprzednio)
                 File externalStorageDir = Environment.getExternalStorageDirectory();
                 if (!externalStorageDir.exists()) {
-                    Log.e(TAG, "External storage directory not found!");
+                    Log.e(TAG, "External storage directory not found! Creating...");
                     if (!externalStorageDir.mkdirs()) {
                         Log.e(TAG, "Failed to create external storage directory!");
                         updateState(Constants.SERVER_STATE_ERROR, null);
-                        return;
+                        return; // Stop if cannot create home dir base
+                    } else {
+                        Log.d(TAG, "Created external storage directory.");
                     }
+                } else if (!externalStorageDir.canRead() || !externalStorageDir.canWrite()) {
+                    Log.e(TAG, "Missing Read/Write permission for external storage!");
+                    // Można by tu rzucić wyjątkiem lub poinformować użytkownika
                 }
-                if (!externalStorageDir.canRead() || !externalStorageDir.canWrite()) {
-                    Log.e(TAG, "Missing Read/Write permission for: " + externalStorageDir.getPath());
-                    // Consider prompting user via notification if needed
-                }
-
                 String homeDirectory = externalStorageDir.getAbsolutePath();
-                Log.d(TAG, "Setting home directory to: " + homeDirectory);
-
-                // Create user
-                BaseUser user = new BaseUser();
-                user.setName(Constants.FTP_USER);
-                user.setPassword(Constants.FTP_PASS);
                 user.setHomeDirectory(homeDirectory);
+                Log.d(TAG, "Setting user home directory to: " + homeDirectory);
 
-                // Grant write permission
+
+                // Nadaj uprawnienia (tak jak poprzednio)
                 List<Authority> authorities = new ArrayList<>();
-                authorities.add(new WritePermission());
+                authorities.add(new WritePermission()); // Importuj WritePermission
                 user.setAuthorities(authorities);
 
-                serverFactory.getUserManager().save(user); // Save the user
+                try {
+                    // Zapisz użytkownika do UTWORZONEJ instancji menedżera
+                    userManager.save(user);
+                    Log.i(TAG, "User '" + Constants.FTP_USER + "' saved to UserManager instance.");
+                } catch (FtpException e) {
+                    Log.e(TAG, "Failed to save user to UserManager", e);
+                    updateState(Constants.SERVER_STATE_ERROR, null);
+                    return; // Zatrzymaj, jeśli nie można zapisać użytkownika
+                } catch (Exception e) {
+                    // Złap inne potencjalne błędy przy save
+                    Log.e(TAG, "Unexpected error saving user", e);
+                    updateState(Constants.SERVER_STATE_ERROR, null);
+                    return;
+                }
 
-                serverFactory.setUserManager(userManagerFactory.createUserManager());
 
-                // Start the server
+                // Ustaw TĘ skonfigurowaną instancję menedżera na fabryce serwera
+                serverFactory.setUserManager(userManager);
+                // --- Koniec Nowej Konfiguracji ---
+
+
+                // Start serwera (tak jak poprzednio)
+                Log.d(TAG, "Creating FtpServer instance...");
                 mFtpServer = serverFactory.createServer();
+                Log.d(TAG, "Starting FtpServer...");
                 mFtpServer.start();
-                Log.i(TAG, "FTP Server started on port " + Constants.FTP_PORT);
+                Log.i(TAG, "FTP Server started successfully on port " + Constants.FTP_PORT);
 
+                // Pobierz IP i zaktualizuj stan (tak jak poprzednio)
                 currentIpAddress = NetworkUtils.getWifiIpAddress(this);
                 if (currentIpAddress == null || currentIpAddress.equals("0.0.0.0")) {
                     currentIpAddress = NetworkUtils.getIPAddress(true); // Fallback
@@ -137,17 +193,22 @@ public class FtpService extends Service {
                 startForeground(Constants.NOTIFICATION_ID, createNotification(currentIpAddress));
                 updateState(Constants.SERVER_STATE_RUNNING, currentIpAddress);
 
+                // Złap błędy startu serwera
             } catch (FtpException e) {
-                Log.e(TAG, "Error starting FTP server", e);
+                Log.e(TAG, "FtpException starting FTP server", e);
                 updateState(Constants.SERVER_STATE_ERROR, null);
-                stopSelf(); // Stop service if server fails to start
-            } catch (Exception e) { // Catch other potential exceptions like file system issues
+                if (mFtpServer != null && !mFtpServer.isStopped()) mFtpServer.stop(); // Spróbuj zatrzymać jeśli częściowo ruszył
+                mFtpServer = null;
+                stopSelf(); // Zatrzymaj serwis
+            } catch (Exception e) { // Złap inne potencjalne błędy (np. z uprawnień przy sprawdzaniu home dir)
                 Log.e(TAG, "Unexpected error starting FTP server", e);
                 updateState(Constants.SERVER_STATE_ERROR, null);
-                stopSelf();
+                if (mFtpServer != null && !mFtpServer.isStopped()) mFtpServer.stop();
+                mFtpServer = null;
+                stopSelf(); // Zatrzymaj serwis
             }
-        });
-    }
+        }); // Koniec mExecutorService.submit
+    } // Koniec metody startFtpServer
 
     private void stopFtpServer() {
         mExecutorService.submit(() -> {
@@ -180,6 +241,17 @@ public class FtpService extends Service {
     private void updateState(int state, String ipAddress) {
         currentServerState = state;
         currentIpAddress = ipAddress;
+
+        // --- Use standard broadcast ---
+        Intent intent = new Intent(Constants.BROADCAST_SERVER_STATE);
+        intent.putExtra(Constants.EXTRA_SERVER_STATE, state);
+        intent.putExtra(Constants.EXTRA_SERVER_IP, ipAddress);
+        // Set package to make it explicit, slightly more secure than fully implicit
+        intent.setPackage(getPackageName());
+        sendBroadcast(intent);
+        Log.d(TAG,"Sent broadcast for state: " + state);
+        // --- End standard broadcast ---
+
 
         // Also update the widget directly (important if widget is added after service start)
         FtpWidgetProvider.updateAllWidgets(this, state, ipAddress);
