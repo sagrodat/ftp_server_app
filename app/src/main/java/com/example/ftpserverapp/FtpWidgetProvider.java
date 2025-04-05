@@ -71,35 +71,33 @@ public class FtpWidgetProvider extends AppWidgetProvider {
         Log.d(TAG, "Updating widget " + appWidgetId + " for state: " + serverState);
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.ftp_widget_layout);
 
-        // Set text and button state based on server state
+        // Ustaw odpowiednią ikonę na ImageButton w zależności od stanu
+        int iconResId; // Zmienna na ID zasobu ikony
         switch (serverState) {
             case Constants.SERVER_STATE_RUNNING:
-                views.setTextViewText(R.id.widget_status_text, context.getString(R.string.widget_text_running));
-                views.setTextViewText(R.id.widget_toggle_button, context.getString(R.string.widget_stop));
+                iconResId = R.drawable.ic_widget_stop; // Ikona Stop
                 break;
             case Constants.SERVER_STATE_STARTING:
-                views.setTextViewText(R.id.widget_status_text, context.getString(R.string.server_starting)); // Show starting state
-                views.setTextViewText(R.id.widget_toggle_button, "..."); // Indicate busy
+                iconResId = R.drawable.ic_widget_sync; // Ikona ładowania/synchronizacji
                 break;
             case Constants.SERVER_STATE_ERROR:
-                views.setTextViewText(R.id.widget_status_text, context.getString(R.string.server_error)); // Show error
-                views.setTextViewText(R.id.widget_toggle_button, context.getString(R.string.widget_start));
+                iconResId = R.drawable.ic_widget_error; // Ikona błędu
                 break;
             case Constants.SERVER_STATE_STOPPED:
             default:
-                views.setTextViewText(R.id.widget_status_text, context.getString(R.string.widget_text_stopped));
-                views.setTextViewText(R.id.widget_toggle_button, context.getString(R.string.widget_start));
+                iconResId = R.drawable.ic_widget_play; // Ikona Play
                 break;
         }
+        // Ustaw obrazek dla ImageButton o ID widget_toggle_button
+        views.setImageViewResource(R.id.widget_toggle_button, iconResId);
 
-        // Set up the PendingIntent for the button click
+        // Ustawienie PendingIntent dla kliknięcia - bez zmian, teraz dla ImageButton
         Intent intent = new Intent(context, FtpWidgetProvider.class);
-        intent.setAction(ACTION_WIDGET_TOGGLE_FTP); // Use our specific action
-        // No need to put extras, we check current state when action is received
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        intent.setAction(ACTION_WIDGET_TOGGLE_FTP);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, appWidgetId, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE); // Użyj appWidgetId w requestCode dla unikalności
         views.setOnClickPendingIntent(R.id.widget_toggle_button, pendingIntent);
 
-        // Instruct the widget manager to update the widget
+        // Zaktualizuj widget
         appWidgetManager.updateAppWidget(appWidgetId, views);
     }
 
