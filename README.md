@@ -2,7 +2,9 @@
 
 A basic Android application that turns your phone into an FTP server, allowing you to easily transfer files between your phone and PC over your local Wi-Fi network.
 
-![Main Screen Before Permissions](./readme_screenshots/main_screen.png)
+<p align="center">
+  <img src="./readme_screenshots/main_screen_after_permissions_granted.png" alt="Main Screen After Permissions Granted" width="400"/>
+</p>
 
 ## Features
 
@@ -17,23 +19,23 @@ A basic Android application that turns your phone into an FTP server, allowing y
 
 1.  **Install:** Build and install the `.apk` on your Android device.
 2.  **Connect to Wi-Fi:** Make sure your phone and your computer are connected to the **same Wi-Fi network**.
-3.  **Launch App:** Open the "FTP Server App". Initially, the "Start Server" button will be disabled.
+3.  **Launch App:** Open the "FTP Server App". Initially, the "Start Server" button will likely be disabled.
+    <br/><img src="./readme_screenshots/main_screen.png" alt="Main Screen Before Permissions" width="400"/>
 4.  **Grant Permissions:**
     * Tap the **"GRANT PERMISSIONS"** button.
     * Allow **Notification** permission if prompted (Android 13+).
-    * A dialog will explain the need for **"All Files Access"**. Tap "Go to Settings".
+    * You will likely see a dialog explaining the need for **"All Files Access"**. Tap "Go to Settings".
     * In the system settings screen that opens, find the app and **enable the toggle** for "All files access".
-    ![Permission Settings Redirect](./readme_screenshots/permissions.png)
     * Navigate back to the app.
-5.  **Ready to Start:** The "GRANT PERMISSIONS" button should now be hidden, and the "START SERVER" button enabled.
-    ![Main Screen After Permissions Granted](./readme_screenshots/main_screen_after_permissions_granted.png)
+    <br/><img src="./readme_screenshots/permissions.png" alt="Permission Settings Redirect or Grant Button" width="400"/>
+5.  **Ready to Start:** The "GRANT PERMISSIONS" button should now be hidden, and the "START SERVER" button enabled (as shown in the first screenshot).
 6.  **Start Server:** Tap the "START SERVER" button.
 7.  **Get Address:** The app will display the server status as "Running" and your phone's IP address (e.g., `ftp://192.168.1.105:2221`).
-    ![Server Running Screen](./readme_screenshots/started_server.png)
+    <br/><img src="./readme_screenshots/started_server.png" alt="Server Running Screen" width="400"/>
 8.  **Connect from PC:**
     * On your computer, open Windows File Explorer, Finder (macOS), or a dedicated FTP client (like FileZilla).
     * Connect to the address shown in the app (e.g., enter `ftp://192.168.1.105:2221` in the File Explorer address bar).
-9.  **Login:** When prompted for credentials:
+9.  **Login:** When prompted for credentials (Windows might remember them from previous attempts):
     * Username: `android`
     * Password: `android`
 10. **Transfer Files:** You should now see the contents of your phone's storage and be able to copy files back and forth.
@@ -45,8 +47,12 @@ A basic Android application that turns your phone into an FTP server, allowing y
 * The icon indicates the server status.
 * Tap the widget to quickly start or stop the FTP server.
 
-![Widget Off](./readme_screenshots/widget_turned_off.png)
-![Widget On](./readme_screenshots/widget_turned_on.png)
+<table>
+  <tr>
+    <td align="center"><img src="./readme_screenshots/widget_turned_off.png" alt="Widget Off" width="250"/><br/><sub>Widget Off</sub></td>
+    <td align="center"><img src="./readme_screenshots/widget_turned_on.png" alt="Widget On" width="250"/><br/><sub>Widget On</sub></td>
+  </tr>
+</table>
 
 ## ⚠️ Security Warning
 
