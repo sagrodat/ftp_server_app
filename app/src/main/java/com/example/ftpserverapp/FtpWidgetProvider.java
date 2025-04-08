@@ -31,81 +31,96 @@ public class FtpWidgetProvider extends AppWidgetProvider {
     // Called when a broadcast is received, including our custom action and state changes
     @Override
     public void onReceive(Context context, Intent intent) {
-        super.onReceive(context, intent); // Important!
+        super.onReceive(context, intent);
 
         String action = intent.getAction();
         Log.d(TAG, "onReceive action: " + action);
 
         if (ACTION_WIDGET_TOGGLE_FTP.equals(action)) {
-            // Toggle button was clicked - decide whether to start or stop
-            int currentState = FtpService.getCurrentServerState();
+            int currentServiceState = FtpService.getCurrentServerState();
             Intent serviceIntent = new Intent(context, FtpService.class);
-            if (currentState == Constants.SERVER_STATE_RUNNING) {
+            AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
+            ComponentName thisWidget = new ComponentName(context, FtpWidgetProvider.class);
+            int[] appWidgetIds = appWidgetManager.getAppWidgetIds(thisWidget);
+
+            if (currentServiceState == Constants.SERVER_STATE_RUNNING) {
+                // Stop Service
                 serviceIntent.setAction(Constants.ACTION_STOP_FTP);
-                Log.d(TAG,"Widget sending STOP intent");
+                Log.d(TAG, "Widget sending STOP intent");
+                ContextCompat.startForegroundService(context, serviceIntent);
             } else {
-                // Check permissions before starting from widget? Ideally, yes, but complex.
-                // Assume permissions are okay for simplicity, rely on Service/Activity checks.
-                serviceIntent.setAction(Constants.ACTION_START_FTP);
-                Log.d(TAG,"Widget sending START intent");
+                // Try to Start Service
+                if (NetworkUtils.isWifiConnected(context)) {
+                    // WiFi ON: Start service, set sync icon
+                    serviceIntent.setAction(Constants.ACTION_START_FTP);
+                    Log.d(TAG, "Widget sending START intent (WiFi connected)");
+                    ContextCompat.startForegroundService(context, serviceIntent);
+                    for (int appWidgetId : appWidgetIds) {
+                        updateWidgetIcon(context, appWidgetManager, appWidgetId, R.drawable.ic_widget_sync);
+                    }
+                } else {
+                    // WiFi OFF: Show ERROR icon explicitly
+                    Log.w(TAG, "Widget start aborted (No WiFi) -> Setting widget to ERROR (Red)");
+                    for (int appWidgetId : appWidgetIds) {
+                        // Set the icon to RED to indicate failure condition
+                        updateWidgetIcon(context, appWidgetManager, appWidgetId, R.drawable.ic_widget_error);
+                    }
+                    // DO NOT start the service
+                }
             }
-            ContextCompat.startForegroundService(context, serviceIntent);
         } else if (Constants.BROADCAST_SERVER_STATE.equals(action)) {
-            // Service state changed, update all widget instances
+            // Handle broadcast updates (as before)
             int state = intent.getIntExtra(Constants.EXTRA_SERVER_STATE, Constants.SERVER_STATE_STOPPED);
             String ipAddress = intent.getStringExtra(Constants.EXTRA_SERVER_IP);
             AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
             ComponentName thisWidget = new ComponentName(context, FtpWidgetProvider.class);
             int[] appWidgetIds = appWidgetManager.getAppWidgetIds(thisWidget);
+            Log.d(TAG, "Received server state broadcast (" + state + "), updating " + appWidgetIds.length + " widgets.");
             for (int appWidgetId : appWidgetIds) {
                 updateAppWidget(context, appWidgetManager, appWidgetId, state, ipAddress);
             }
         } else if (AppWidgetManager.ACTION_APPWIDGET_UPDATE.equals(action)) {
-            // Handle standard updates if necessary (already covered by onUpdate)
+            // Handle standard updates (as before)
+            AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
+            ComponentName thisWidget = new ComponentName(context, FtpWidgetProvider.class);
+            int[] appWidgetIds = appWidgetManager.getAppWidgetIds(thisWidget);
+            Log.d(TAG, "Received standard widget update action, updating " + appWidgetIds.length + " widgets.");
+            for (int appWidgetId : appWidgetIds) {
+                updateAppWidget(context, appWidgetManager, appWidgetId, FtpService.getCurrentServerState(), FtpService.getCurrentIpAddress());
+            }
         }
+    } // end onReceive
+
+    // updateAppWidget method (as before)
+    static void updateAppWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId, int serverState, String ipAddress) {
+        Log.d(TAG, "Updating widget " + appWidgetId + " fully for service state: " + serverState);
+        int iconResId;
+        switch (serverState) {
+            case Constants.SERVER_STATE_RUNNING: iconResId = R.drawable.ic_widget_stop; break;
+            case Constants.SERVER_STATE_STARTING: iconResId = R.drawable.ic_widget_sync; break;
+            case Constants.SERVER_STATE_ERROR: iconResId = R.drawable.ic_widget_error; break;
+            case Constants.SERVER_STATE_STOPPED: default: iconResId = R.drawable.ic_widget_play; break;
+        }
+        updateWidgetIcon(context, appWidgetManager, appWidgetId, iconResId);
     }
 
-
-    // Method to update a single widget instance
-    static void updateAppWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId, int serverState, String ipAddress) {
-        Log.d(TAG, "Updating widget " + appWidgetId + " for state: " + serverState);
+    // updateWidgetIcon helper method (as before)
+    static void updateWidgetIcon(Context context, AppWidgetManager appWidgetManager, int appWidgetId, int iconResId) {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.ftp_widget_layout);
-
-        // Ustaw odpowiednią ikonę na ImageButton w zależności od stanu
-        int iconResId; // Zmienna na ID zasobu ikony
-        switch (serverState) {
-            case Constants.SERVER_STATE_RUNNING:
-                iconResId = R.drawable.ic_widget_stop; // Ikona Stop
-                break;
-            case Constants.SERVER_STATE_STARTING:
-                iconResId = R.drawable.ic_widget_sync; // Ikona ładowania/synchronizacji
-                break;
-            case Constants.SERVER_STATE_ERROR:
-                iconResId = R.drawable.ic_widget_error; // Ikona błędu
-                break;
-            case Constants.SERVER_STATE_STOPPED:
-            default:
-                iconResId = R.drawable.ic_widget_play; // Ikona Play
-                break;
-        }
-        // Ustaw obrazek dla ImageButton o ID widget_toggle_button
         views.setImageViewResource(R.id.widget_toggle_button, iconResId);
-
-        // Ustawienie PendingIntent dla kliknięcia - bez zmian, teraz dla ImageButton
         Intent intent = new Intent(context, FtpWidgetProvider.class);
         intent.setAction(ACTION_WIDGET_TOGGLE_FTP);
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, appWidgetId, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE); // Użyj appWidgetId w requestCode dla unikalności
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, appWidgetId, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         views.setOnClickPendingIntent(R.id.widget_toggle_button, pendingIntent);
-
-        // Zaktualizuj widget
         appWidgetManager.updateAppWidget(appWidgetId, views);
     }
 
-    // Static helper method to trigger updates for all widgets (called from Service)
+    // updateAllWidgets method (as before)
     public static void updateAllWidgets(Context context, int serverState, String ipAddress) {
         AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
         ComponentName thisAppWidget = new ComponentName(context.getPackageName(), FtpWidgetProvider.class.getName());
         int[] appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget);
+        Log.d(TAG, "Updating all widgets (" + appWidgetIds.length + ") via updateAllWidgets call for state: " + serverState);
         for (int appWidgetId : appWidgetIds) {
             updateAppWidget(context, appWidgetManager, appWidgetId, serverState, ipAddress);
         }

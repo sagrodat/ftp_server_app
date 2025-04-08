@@ -1,6 +1,9 @@
 package com.example.ftpserverapp;
 
 import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.wifi.WifiManager;
 import android.text.format.Formatter;
 import android.util.Log;
@@ -26,6 +29,31 @@ public class NetworkUtils {
             // Fallback for hotspot or other network types (less reliable for typical use case)
             return getIPAddress(true);
         }
+    }
+
+    public static boolean isWifiConnected(Context context) {
+        ConnectivityManager connMgr = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (connMgr == null) {
+            Log.e(TAG, "ConnectivityManager not available");
+            return false; // Cannot determine state
+        }
+
+        Network activeNetwork = connMgr.getActiveNetwork();
+        if (activeNetwork == null) {
+            Log.d(TAG, "No active network connection.");
+            return false; // No network connection at all
+        }
+
+        NetworkCapabilities capabilities = connMgr.getNetworkCapabilities(activeNetwork);
+        if (capabilities == null) {
+            Log.d(TAG, "Cannot get network capabilities.");
+            return false; // Cannot determine capabilities
+        }
+
+        // Check if the active network transport is WiFi
+        boolean isWifi = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
+        Log.d(TAG, "Active network is WiFi: " + isWifi);
+        return isWifi;
     }
 
 

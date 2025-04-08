@@ -76,6 +76,12 @@ public class MainActivity extends AppCompatActivity {
 
         // --- BUTTON CLICK LISTENERS ---
         btnStart.setOnClickListener(v -> {
+
+            if (!NetworkUtils.isWifiConnected(this)) {
+                Toast.makeText(this, R.string.wifi_required_error, Toast.LENGTH_LONG).show();
+                return; // Stop if not connected to WiFi
+            }
+
             // Check permissions one last time before starting
             if (checkPermissionsGranted()) {
                 Log.d(TAG, "Start button clicked - sending start intent");

@@ -17,5 +17,6 @@
     <string name="widget_start">Start</string>
     <string name="widget_stop">Stop</string>
     <string name="grant_permissions">Grant Permissions</string>
+    <string name="wifi_required_error">WiFi connection is required to start the FTP server.</string>
 
 </resources>
